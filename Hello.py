@@ -19,32 +19,46 @@ LOGGER = get_logger(__name__)
 
 
 def run():
+    expenses  = []
+
     st.set_page_config(
-        page_title="Hello",
+        page_title="Budget Tracker",
         page_icon="👋",
     )
 
-    st.write("# Welcome to Streamlit! 👋")
+    st.write("# Welcome to this Budget Tracker 👋")
+    manual_budget_input = st.number_input("Budget Amount (Enter manually)", min_value=0.0, value=1000.0)
+
+    expense_name = st.text_input('Expense Name')
+    expense_category = st.selectbox("Expense Category", ["Transportation", "Food", "Entertainment"])
+    expense_amount = st.number_input('Expense Amount', min_value=0.0)
+
+    if st.button('Add Expense'):
+
+      expense = {
+        'name': expense_name,
+        'category': expense_category,
+        'amount': expense_amount
+      }
+
+      expenses.append(expense)
+
+      st.success('Expense added successfully!')
+    
+    remaining_budget = manual_budget_input - sum(expense['amount'] for expense in expenses)
+
+    if remaining_budget >= 0:
+      st.success(f'Remaining Budget: ${remaining_budget}')
+    else:
+      st.error(f'Over budget: ${remaining_budget}')
+
+    st.write('Expenses List')
+    for expense in expenses:
+      st.write(f"Name: {expense['name']}, Category: {expense['category']}, Amount: ${expense['amount']}")
+
 
     st.sidebar.success("Select a demo above.")
 
-    st.markdown(
-        """
-        Streamlit is an open-source app framework built specifically for
-        Machine Learning and Data Science projects.
-        **👈 Select a demo from the sidebar** to see some examples
-        of what Streamlit can do!
-        ### Want to learn more?
-        - Check out [streamlit.io](https://streamlit.io)
-        - Jump into our [documentation](https://docs.streamlit.io)
-        - Ask a question in our [community
-          forums](https://discuss.streamlit.io)
-        ### See more complex demos
-        - Use a neural net to [analyze the Udacity Self-driving Car Image
-          Dataset](https://github.com/streamlit/demo-self-driving)
-        - Explore a [New York City rideshare dataset](https://github.com/streamlit/demo-uber-nyc-pickups)
-    """
-    )
 
 
 if __name__ == "__main__":
