@@ -7,23 +7,26 @@ cursor = conn.cursor()
 
 
 def setup():
-    with st.form(key='setup_form'):
+    with st.form(key='budget_form'):
         budget = st.number_input('Enter your budget', min_value=0.0)
-        categories = st.text_input('Enter your categories (seperated by comma)')
+        submit_budget = st.form_submit_button(label='Submit Budget')
 
-        submit_button = st.form_submit_button(label='Submit')
-
-    if submit_button:
-        categories = [category.strip() for category in categories.split(',')]
-        cursor.execute('CREATE TABLE IF NOT EXISTS categories (name TEXT)')
-        cursor.execute('CREATE TABLE IF NOT EXISTS budget (amount REAL)')
-        cursor.execute('DELETE FROM categories')
-        cursor.execute('DELETE FROM budget')        
-        for category in categories:
-            cursor.execute('INSERT INTO categories VALUES (?)', (category,))
-        cursor.execute('INSERT INTO budget VALUES (?)', (budget,))
+    if submit_budget:
+        cursor.execute('DELETE FROM budget')
+        cursor.execute('INSERT INTO budget (amount) VALUES (?)', (budget,))
         conn.commit()
-        st.success('Setup completed successfully')
+        st.success('Budget set successfully')
+
+    with st.form(key='categories_form'):
+        categories = st.text_input('Enter your categories (seperated by comma)')
+        submit_categories = st.form_submit_button(label='Submit Categories')
+
+    if submit_categories:
+        categories = [category.strip() for category in categories.split(',')]
+        for category in categories:
+            cursor.execute('INSERT OR IGNORE INTO categories (name) VALUES (?)', (category,))
+        conn.commit()
+        st.success('Categories set successfully')
     
     if st.sidebar.button('Delete All Categories'):
         cursor.execute('DELETE FROM categories')
