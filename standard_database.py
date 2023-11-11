@@ -7,7 +7,6 @@ cursor.execute('DROP TABLE IF EXISTS categories')
 cursor.execute('DROP TABLE IF EXISTS expenses')
 cursor.execute('DROP TABLE IF EXISTS budget')
 
-
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS categories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

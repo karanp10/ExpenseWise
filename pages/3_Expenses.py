@@ -71,7 +71,7 @@ def expense():
                     conn.commit()
                     st.success('Expense updated successfully!')
                     del st.session_state.edit
-                    st.experimental_rerun()
+                    st.rerun()
 
 
 

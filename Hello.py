@@ -30,5 +30,12 @@ def run():
 
     st.write("# Welcome to this Budget Tracker 👋")
 
+    st.write("""
+    This Budget Tracker allows you to manage your finances effectively. 
+    It includes a budget planner where you can allocate your income to different categories such as necessities, savings, and luxuries based on your preferences. 
+    The application also features a dashboard where you can input your expenses for each category and track them. 
+    This way, you can have a clear overview of your spending and ensure that it aligns with your budget plan.
+    """)
+
 if __name__ == "__main__":
     run()

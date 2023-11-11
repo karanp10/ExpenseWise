@@ -65,7 +65,7 @@ def setup():
                     conn.commit()
                     st.success('Category updated successfully')
                     del st.session_state.edit
-                    st.experimental_rerun()
-                    
+                    st.rerun()
+
 st.set_page_config(page_title="Setup", page_icon="📊")
 setup()
