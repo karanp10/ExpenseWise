@@ -3,38 +3,43 @@ import sqlite3
 from datetime import datetime
 import pandas as pd
 
-conn = sqlite3.connect('budget.db')
+conn = sqlite3.connect('database.db')
 cursor = conn.cursor()
 
 def budget_planner():
     st.title('Budget Planner')
 
+    if 'user_id' not in st.session_state:
+        st.write('Please log in to continue')
+        st.stop()
+
+    user_id = st.session_state['user_id']
     col1, col2 = st.columns(2)
 
     #Input for Income
     income = col1.number_input('Enter your income', min_value = 0.0)
     if col1.button('Submit Income'):
-        cursor.execute('INSERT INTO income (amount) VALUES (?)', (income,))
+        cursor.execute('INSERT INTO income (user_id, amount) VALUES (?, ?)', (user_id, income))
         conn.commit()
 
     col1.subheader('Mandatory Expenses')
-    categories = [row[0] for row in cursor.execute('SELECT name FROM categories')]
+    categories = [row[0] for row in cursor.execute('SELECT name FROM groups')]
     category_name = col1.selectbox('Select a category', categories)
     expense_name = col1.text_input('Enter the name of the expense')
     amount = col1.number_input('Enter the amount', min_value = 0.0)
     if col1.button('Submit Expense'):
-        cursor.execute('Select id FROM categories WHERE name = ?', (category_name,))
+        cursor.execute('SELECT id FROM groups WHERE name = ?', (category_name,))
         category_id = cursor.fetchone()[0]
-        cursor.execute('INSERT INTO mandatory_expenses (category_id, name, amount) VALUES (?, ?, ?)', (category_id, expense_name, amount))
+        cursor.execute('INSERT INTO mandatory_expenses (user_id, group_id, name, amount) VALUES (?, ?, ?, ?)', (user_id, category_id, expense_name, amount))
         conn.commit()
 
-    latest_income = cursor.execute('SELECT amount FROM income ORDER BY rowid DESC LIMIT 1').fetchone()
+    latest_income = cursor.execute('SELECT amount FROM income WHERE user_id = ? AND amount IS NOT NULL ORDER BY rowid DESC LIMIT 1', (user_id,)).fetchone()
 
     if latest_income:
         # Display the income in col2 as a subheader
         col2.subheader(f"Income: {latest_income[0]}")
 
-    expenses = cursor.execute('SELECT mandatory_expenses.id, categories.name, mandatory_expenses.name, mandatory_expenses.amount FROM mandatory_expenses JOIN categories ON mandatory_expenses.category_id = categories.id').fetchall()
+    expenses = cursor.execute('SELECT mandatory_expenses.id, groups.name, mandatory_expenses.name, mandatory_expenses.amount FROM mandatory_expenses JOIN groups ON mandatory_expenses.group_id = groups.id WHERE mandatory_expenses.user_id = ? AND mandatory_expenses.amount IS NOT NULL', (user_id,)).fetchall()
 
     if expenses:
         df = pd.DataFrame(expenses, columns=['ID', 'Category', 'Expense', 'Amount'])
@@ -47,7 +52,7 @@ def budget_planner():
                 cols[1].markdown(f"{row['Expense']}")
                 cols[2].markdown(f"{row['Amount']}")
                 if cols[3].button(label=':x:', key=row['ID']):
-                    cursor.execute('DELETE FROM mandatory_expenses WHERE id = ?', (row['ID'],))
+                    cursor.execute('DELETE FROM mandatory_expenses WHERE id = ? AND user_id = ?', (row['ID'], user_id))
                     conn.commit()
                     st.rerun()
 
@@ -57,7 +62,7 @@ def budget_planner():
     luxuries = col1.slider('Luxuries', min_value = 0, max_value = 100, value = 20)
 
 
-    latest_income = cursor.execute('SELECT amount FROM income ORDER BY rowid DESC LIMIT 1').fetchone()
+    latest_income = cursor.execute('SELECT amount FROM income WHERE user_id = ? ORDER BY rowid DESC LIMIT 1', (user_id,)).fetchone()
 
     if latest_income:
         col2.subheader("Allocation Before Expenses")
@@ -72,13 +77,13 @@ def budget_planner():
             col2.text(f"Savings: {savings_budget}")
             col2.text(f"Luxuries: {luxuries_budget}")
 
-            category_ids = cursor.execute('SELECT DISTINCT category_id FROM mandatory_expenses').fetchall()
-            category_names = {id: name for id, name in cursor.execute('SELECT id, name FROM categories').fetchall()}
+            category_ids = cursor.execute('SELECT DISTINCT group_id FROM mandatory_expenses WHERE user_id = ?', (user_id,)).fetchall()
+            category_names = {id: name for id, name in cursor.execute('SELECT id, name FROM groups').fetchall()}
             category_expenses = {}
 
             for category_id in category_ids:
                 category_id = category_id[0]
-                total_expenses = cursor.execute('SELECT SUM(amount) FROM mandatory_expenses WHERE category_id = ?', (category_id,)).fetchone()[0] or 0
+                total_expenses = cursor.execute('SELECT SUM(amount) FROM mandatory_expenses WHERE group_id = ? AND user_id = ?', (category_id, user_id)).fetchone()[0] or 0
                 category_expenses[category_names[category_id]] = total_expenses
 
             # Now you can access the expenses for each category using the category names

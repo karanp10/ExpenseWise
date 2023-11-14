@@ -2,14 +2,22 @@ import streamlit as st
 import sqlite3
 from datetime import datetime
 
-conn = sqlite3.connect('expenses.db')
+conn = sqlite3.connect('database.db')
 cursor = conn.cursor()
 cursor.execute('PRAGMA foreign_keys = ON;')
 
 
 
 def expense():
-    cursor.execute('SELECT name FROM categories')
+
+    if 'user_id' not in st.session_state:
+        st.write('Please log in to continue')
+        st.stop()
+
+    user_id = st.session_state['user_id']
+
+
+    cursor.execute('SELECT name FROM categories WHERE user_id = ?', (user_id,))
     categories = [category[0] for category in cursor.fetchall()]
 
     with st.form(key='expense_form'):
@@ -20,25 +28,23 @@ def expense():
     
     if submit_button:
         date = datetime.now().strftime('%Y-%m-%d')
-        cursor.execute('SELECT id FROM categories WHERE name = ?', (category,))
+        cursor.execute('SELECT id FROM categories WHERE name = ? AND user_id = ?', (category, user_id))
         category_id = cursor.fetchone()[0]
-        cursor.execute('INSERT INTO expenses (name, category_id, category, amount, date) VALUES (?, ?, ?, ?, ?)', (name, category_id, category, amount, date))
+        cursor.execute('INSERT INTO expenses (user_id, name, category_id, category, amount, date) VALUES (?, ?, ?, ?, ?, ?)', (user_id, name, category_id, category, amount, date))
         conn.commit()
         st.success('Expense added successfully!')
     
     if st.sidebar.button('Delete All Expenses'):
-        cursor.execute('DELETE FROM expenses')
+        cursor.execute('DELETE FROM expenses WHERE user_id = ?', (user_id,))
         conn.commit()
         st.success('All expenses deleted successfully')
 
     cursor.execute('''
         SELECT id, name, category, amount, date 
         FROM expenses 
-    ''')
+        WHERE user_id = ?
+        ''', (user_id,))
     expenses = cursor.fetchall()
-
-    cursor.execute('SELECT name FROM categories')
-    categories = [category[0] for category in cursor.fetchall()]
 
     for i, expense in enumerate(expenses):
         col1, col2, col3, col4, col5, col6 = st.columns([3,3,3,3,3,3])
@@ -49,7 +55,7 @@ def expense():
         
         delete_button_key = f'delete_{expense[0]}'
         if col5.button('Delete', key=delete_button_key):
-            cursor.execute('DELETE FROM expenses WHERE id = ?', (expense[0],))
+            cursor.execute('DELETE FROM expenses WHERE id = ? AND user_id = ?', (expense[0], user_id))
             conn.commit()
             st.success('Expense deleted successfully!')
             st.rerun()
@@ -67,7 +73,7 @@ def expense():
                 submit_button = st.form_submit_button('Update')
 
                 if submit_button:
-                    cursor.execute('UPDATE expenses SET name = ?, category = ?, amount = ?, date = ? WHERE id = ?', (new_name, new_category, new_amount, new_date.strftime('%Y-%m-%d'), expense[0]))
+                    cursor.execute('UPDATE expenses SET name = ?, category = ?, amount = ?, date = ? WHERE id = ? AND user_id = ?', (new_name, new_category, new_amount, new_date.strftime('%Y-%m-%d'), expense[0], user_id))
                     conn.commit()
                     st.success('Expense updated successfully!')
                     del st.session_state.edit

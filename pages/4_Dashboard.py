@@ -4,15 +4,22 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
 
-conn = sqlite3.connect('expenses.db')
+conn = sqlite3.connect('database.db')
 cursor = conn.cursor()
 
 def budget():
-    cursor.execute('SELECT amount FROM budget')
+
+    if 'user_id' not in st.session_state:
+        st.write('Please log in to continue')
+        st.stop()
+    user_id = st.session_state['user_id']
+
+
+    cursor.execute('SELECT amount FROM budget WHERE user_id = ?', (user_id,))
     result = cursor.fetchone()
     budget = result[0] if result is not None else 0
 
-    cursor.execute('SELECT SUM(amount) FROM expenses')
+    cursor.execute('SELECT SUM(amount) FROM expenses WHERE user_id = ?', (user_id,))
     expenses = cursor.fetchone()[0]
     if expenses is None:
         expenses = 0
@@ -22,7 +29,7 @@ def budget():
     col1.metric(label='Budget', value=f'${budget}')
     col2.metric(label='Remaining', value=f"${remaining}", delta=f"-${expenses}")
 
-    cursor.execute('SELECT category, SUM(amount) FROM expenses GROUP BY category')
+    cursor.execute('SELECT category, SUM(amount) FROM expenses WHERE user_id = ? GROUP BY category', (user_id,))
     category_expenses = cursor.fetchall()
 
     categories = [row[0] for row in category_expenses]
@@ -42,7 +49,7 @@ def budget():
         st.plotly_chart(fig)
 
     category_to_view = st.selectbox('Select a category to view', categories)
-    cursor.execute('SELECT name, SUM(amount) FROM expenses WHERE category = ? GROUP BY name',  (category_to_view,))
+    cursor.execute('SELECT name, SUM(amount) FROM expenses WHERE category = ? AND user_id = ? GROUP BY name',  (category_to_view, user_id))
     individual_expenses = cursor.fetchall()
 
     expense_names = [row[0] for row in individual_expenses]

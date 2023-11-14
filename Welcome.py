@@ -15,11 +15,13 @@
 import streamlit as st
 from streamlit.logger import get_logger
 import sqlite3
+from auth import check_user, create_user, get_user_id
 
 LOGGER = get_logger(__name__)
 
-conn = sqlite3.connect('expenses.db')
+conn = sqlite3.connect('database.db')
 cursor = conn.cursor()
+
 
 def run():
 
@@ -36,6 +38,35 @@ def run():
     The application also features a dashboard where you can input your expenses for each category and track them. 
     This way, you can have a clear overview of your spending and ensure that it aligns with your budget plan.
     """)
+
+    login_placeholder = st.empty()
+    create_placeholder = st.empty()
+
+    if 'user_id' in st.session_state:
+        # User is logged in
+        st.write("You are logged in!")
+        if st.button('Logout'):
+            st.session_state.clear()
+            st.rerun()
+    else:
+        # User is not logged in, display the login form
+        username = st.text_input('Username')
+        password = st.text_input('Password', type='password')
+
+        if login_placeholder.button('Log In', key='login'):
+            if check_user(username, password):
+                st.session_state['user_id'] = get_user_id(username)
+                st.rerun()
+            else:
+                st.write('Invalid username or password. ')
+
+        if create_placeholder.button('Create Account', key='create_account'):
+            success, message = create_user(username, password)
+            if success:
+                st.session_state['user_id'] = get_user_id(username)
+                st.rerun()
+            else:
+                st.write(message)
 
 if __name__ == "__main__":
     run()
