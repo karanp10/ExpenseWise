@@ -1,11 +1,16 @@
 import streamlit as st
 import sqlite3
 from datetime import datetime
+import pandas as pd
 
 conn = sqlite3.connect('database.db')
 cursor = conn.cursor()
 cursor.execute('PRAGMA foreign_keys = ON;')
 
+
+def get_expenses(user_id, month):
+    cursor.execute('SELECT id, name, category, amount, date FROM expenses WHERE user_id = ? AND month = ?', (user_id, month))
+    return cursor.fetchall()
 
 
 def expense():
@@ -16,8 +21,21 @@ def expense():
 
     user_id = st.session_state['user_id']
 
+    months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
-    cursor.execute('SELECT name FROM categories WHERE user_id = ?', (user_id,))
+    current_month = datetime.now().strftime('%B')
+    with st.form(key='month_form'):
+        month = st.selectbox('Select a month', months, index=months.index(current_month))
+        submit_month = st.form_submit_button(label='Select Month')
+
+    if submit_month:
+        # Load the categories for the selected month
+        cursor.execute('SELECT id, name FROM categories WHERE user_id = ? AND month = ?', (user_id, month))
+        categories = cursor.fetchall()
+
+
+
+    cursor.execute('SELECT name FROM categories WHERE user_id = ? AND month = ?', (user_id, month))
     categories = [category[0] for category in cursor.fetchall()]
 
     with st.form(key='expense_form'):
@@ -28,23 +46,20 @@ def expense():
     
     if submit_button:
         date = datetime.now().strftime('%Y-%m-%d')
-        cursor.execute('SELECT id FROM categories WHERE name = ? AND user_id = ?', (category, user_id))
+        cursor.execute('SELECT id FROM categories WHERE name = ? AND user_id = ? AND month = ?', (category, user_id, month))
         category_id = cursor.fetchone()[0]
-        cursor.execute('INSERT INTO expenses (user_id, name, category_id, category, amount, date) VALUES (?, ?, ?, ?, ?, ?)', (user_id, name, category_id, category, amount, date))
+        cursor.execute('INSERT INTO expenses (user_id, name, category_id, category, amount, date, month) VALUES (?, ?, ?, ?, ?, ?, ?)', (user_id, name, category_id, category, amount, date, month))
         conn.commit()
         st.success('Expense added successfully!')
     
     if st.sidebar.button('Delete All Expenses'):
-        cursor.execute('DELETE FROM expenses WHERE user_id = ?', (user_id,))
+        cursor.execute('DELETE FROM expenses WHERE user_id = ? AND month = ?', (user_id, month))
         conn.commit()
         st.success('All expenses deleted successfully')
 
-    cursor.execute('''
-        SELECT id, name, category, amount, date 
-        FROM expenses 
-        WHERE user_id = ?
-        ''', (user_id,))
-    expenses = cursor.fetchall()
+    expenses = get_expenses(user_id, month)
+
+
 
     for i, expense in enumerate(expenses):
         col1, col2, col3, col4, col5, col6 = st.columns([3,3,3,3,3,3])

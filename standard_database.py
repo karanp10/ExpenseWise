@@ -13,10 +13,10 @@ cursor.execute('DROP TABLE IF EXISTS groups')
 cursor.execute('DROP TABLE IF EXISTS users')
 
 cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            password TEXT
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE,
+        password TEXT
         )
     ''')
 
@@ -26,7 +26,7 @@ cursor.execute('''
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
       amount REAL,
-      FOREIGN KEY(user_id) REFERENCES users(id)
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     )
 ''')
 
@@ -48,7 +48,7 @@ cursor.execute('''
       group_id INTEGER,
       name TEXT,
       amount REAL,
-      FOREIGN KEY(user_id) REFERENCES users(id),
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY(group_id) REFERENCES groups(id) ON DELETE CASCADE
     )
 ''')
@@ -58,6 +58,7 @@ cursor.execute('''
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
       name TEXT,
+      month TEXT,
       FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE
     )
 ''')
@@ -71,8 +72,9 @@ cursor.execute('''
       category_id INTEGER,
       category TEXT,
       amount REAL,
+      month TEXT,
       date TEXT,
-      FOREIGN KEY(user_id) REFERENCES users (id),
+      FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE,
       FOREIGN KEY(category_id) REFERENCES categories(id) ON DELETE CASCADE
     )
 ''')
@@ -83,7 +85,8 @@ cursor.execute('''
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
       amount REAL,
-      FOREIGN KEY(user_id) REFERENCES users(id)
+      month TEXT,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     )
 ''')
 conn.commit()
