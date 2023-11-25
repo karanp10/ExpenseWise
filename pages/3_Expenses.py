@@ -2,15 +2,12 @@ import streamlit as st
 import sqlite3
 from datetime import datetime
 import pandas as pd
+from utils import *
 
 conn = sqlite3.connect('database.db')
 cursor = conn.cursor()
 cursor.execute('PRAGMA foreign_keys = ON;')
 
-
-def get_expenses(user_id, month):
-    cursor.execute('SELECT id, name, category, amount, date FROM expenses WHERE user_id = ? AND month = ?', (user_id, month))
-    return cursor.fetchall()
 
 
 def expense():
@@ -30,36 +27,27 @@ def expense():
 
     if submit_month:
         # Load the categories for the selected month
-        cursor.execute('SELECT id, name FROM categories WHERE user_id = ? AND month = ?', (user_id, month))
-        categories = cursor.fetchall()
+        categories = fetch_categories_names(cursor, user_id, month)
 
-
-
-    cursor.execute('SELECT name FROM categories WHERE user_id = ? AND month = ?', (user_id, month))
-    categories = [category[0] for category in cursor.fetchall()]
+    categories = fetch_categories_names(cursor, user_id, month)
 
     with st.form(key='expense_form'):
         name = st.text_input('Enter expense name')
         category = st.selectbox('Select category', categories)
         amount = st.number_input('Enter amount', min_value=0.0)
         submit_button = st.form_submit_button(label='Submit')
-    
+
     if submit_button:
-        date = datetime.now().strftime('%Y-%m-%d')
-        cursor.execute('SELECT id FROM categories WHERE name = ? AND user_id = ? AND month = ?', (category, user_id, month))
-        category_id = cursor.fetchone()[0]
-        cursor.execute('INSERT INTO expenses (user_id, name, category_id, category, amount, date, month) VALUES (?, ?, ?, ?, ?, ?, ?)', (user_id, name, category_id, category, amount, date, month))
-        conn.commit()
-        st.success('Expense added successfully!')
-    
+        add_expense(conn, cursor, user_id, name, category, amount, month)
+        st.success('Expense added succcessfully!')
+        expenses = fetch_expenses(cursor, user_id, month)
+
+
     if st.sidebar.button('Delete All Expenses'):
-        cursor.execute('DELETE FROM expenses WHERE user_id = ? AND month = ?', (user_id, month))
-        conn.commit()
+        delete_month_expense(conn, cursor, user_id, month)
         st.success('All expenses deleted successfully')
 
-    expenses = get_expenses(user_id, month)
-
-
+    expenses = fetch_expenses(cursor, user_id, month)
 
     for i, expense in enumerate(expenses):
         col1, col2, col3, col4, col5, col6 = st.columns([3,3,3,3,3,3])
@@ -70,8 +58,7 @@ def expense():
         
         delete_button_key = f'delete_{expense[0]}'
         if col5.button('Delete', key=delete_button_key):
-            cursor.execute('DELETE FROM expenses WHERE id = ? AND user_id = ?', (expense[0], user_id))
-            conn.commit()
+            delete_expense(conn, cursor, expense[0], user_id)
             st.success('Expense deleted successfully!')
             st.rerun()
         
@@ -85,15 +72,17 @@ def expense():
                 new_category = st.selectbox('Category', categories, index=categories.index(expense[2]))
                 new_amount = st.number_input('Amount', value=expense[3])
                 new_date = st.date_input('Date', value=datetime.strptime(expense[4], '%Y-%m-%d'))
+                new_category_id = fetch_category_id(cursor, user_id, month, new_category)
                 submit_button = st.form_submit_button('Update')
 
                 if submit_button:
-                    cursor.execute('UPDATE expenses SET name = ?, category = ?, amount = ?, date = ? WHERE id = ? AND user_id = ?', (new_name, new_category, new_amount, new_date.strftime('%Y-%m-%d'), expense[0], user_id))
-                    conn.commit()
+                    update_expense(conn, cursor, new_name, new_category_id, new_amount, new_date, expense[0], user_id)
                     st.success('Expense updated successfully!')
                     del st.session_state.edit
                     st.rerun()
 
+    cursor.close()
+    conn.close()
 
 
 

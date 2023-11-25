@@ -14,8 +14,17 @@
 
 import inspect
 import textwrap
-
+import sqlite3
+import calendar
+import pandas as pd
+from datetime import datetime, timedelta
+import plotly.graph_objects as go
+import plotly.express as px
+import numpy as np
 import streamlit as st
+
+
+conn = sqlite3.connect('database.db')
 
 
 def show_code(demo):
@@ -26,3 +35,167 @@ def show_code(demo):
         st.markdown("## Code")
         sourcelines, _ = inspect.getsourcelines(demo)
         st.code(textwrap.dedent("".join(sourcelines[1:])))
+
+def fetch_categories_names(cursor, user_id, month):
+    cursor.execute('SELECT name FROM categories WHERE user_id = ? AND month = ?', (user_id, month))
+    categories = [category[0] for category in cursor.fetchall()]
+    return categories
+
+def fetch_categories(cursor, user_id, month):
+    cursor.execute('SELECT id, name FROM categories WHERE user_id = ? AND month = ?', (user_id, month))
+    return cursor.fetchall()
+
+def fetch_category_id(cursor, user_id, month, category_name):
+    cursor.execute('SELECT id FROM categories WHERE name = ? AND user_id = ? AND month = ?', (category_name, user_id, month))
+    return cursor.fetchone()[0]
+
+def fetch_budget(cursor, user_id, month):
+    cursor.execute('SELECT amount FROM budget WHERE user_id = ? AND month = ?', (user_id, month))
+    budget = cursor.fetchone()
+    return budget[0] if budget is not None else 0
+
+def fetch_expenses(cursor, user_id, month):
+    cursor.execute('SELECT e.id, e.name, c.name, e.amount, e.date FROM expenses e INNER JOIN categories c ON e.category_id = c.id WHERE e.user_id = ? AND e.month = ?', (user_id, month))
+    return cursor.fetchall()
+
+def fetch_sum_expenses(cursor, user_id, month):
+    cursor.execute('SELECT SUM(amount) FROM expenses WHERE user_id = ? AND month = ?', (user_id, month))
+    expenses = cursor.fetchone()[0]
+    return expenses if expenses is not None else 0
+
+def add_expense(conn, cursor, user_id, name, category, amount, month):
+    cursor.execute('SELECT id FROM categories WHERE name = ? AND user_id = ? AND month = ?', (category, user_id, month))
+    category_id = cursor.fetchone()[0]
+    date = datetime.now().strftime('%Y-%m-%d')
+    cursor.execute('INSERT INTO expenses (user_id, name, category_id, amount, date, month) VALUES (?, ?, ?, ?, ?, ?)', (user_id, name, category_id, amount, date, month))
+    conn.commit()
+
+def add_budget(conn, cursor, user_id, budget, month):
+    cursor.execute('DELETE FROM budget WHERE user_id = ? AND month = ?', (user_id, month))
+    cursor.execute('INSERT INTO budget (user_id, amount, month) VALUES (?, ?, ?)', (user_id, budget, month))
+    conn.commit()
+
+def add_categories(conn, cursor, user_id, categories_input, month):
+    if len(categories_input) > 1:
+        categories_list = [category.strip() for category in categories_input.split(',')]
+        for category in categories_list:
+            cursor.execute('INSERT INTO categories (user_id, name, month) VALUES (?, ?, ?)', (user_id, category, month))
+        conn.commit()
+        st.success('Budget set successfully')
+
+def delete_expense(conn, cursor, id, user_id):
+    cursor.execute('DELETE FROM expenses WHERE id = ? AND user_id = ?', (id, user_id))
+    conn.commit()
+
+def delete_month_expense(conn, cursor, user_id, month):
+    cursor.execute('DELETE FROM expenses WHERE user_id = ? AND month = ?', (user_id, month))
+    conn.commit()
+
+def delete_categories(conn, cursor, user_id, month):
+    cursor.execute('DELETE FROM categories WHERE user_id = ? AND month = ?', (user_id, month))
+    conn.commit()
+
+def delete_one_category(conn, cursor, category_id, user_id, month):
+    cursor.execute('DELETE FROM categories WHERE id = ? AND user_id = ? AND month = ?', (category_id, user_id, month))
+    conn.commit()
+
+def update_expense(conn, cursor, new_name, new_category_id, new_amount, new_date, expense_id, user_id):
+    cursor.execute('UPDATE expenses SET name = ?, category_id = ?, amount = ?, date = ? WHERE id = ? AND user_id = ?', (new_name, new_category_id, new_amount, new_date.strftime('%Y-%m-%d'), expense_id, user_id))
+    conn.commit()
+
+def update_category(conn, cursor, new_name, category_id, user_id, month):
+    cursor.execute('UPDATE categories SET name = ? WHERE id = ? AND user_id = ? AND month = ?', (new_name, category_id, user_id, month))
+    conn.commit()
+
+def category_chart(cursor, user_id, month, col1):
+    cursor.execute('SELECT c.name, SUM(e.amount) FROM expenses e INNER JOIN categories c ON category_id = c.id WHERE e.user_id = ? AND e.month = ? GROUP BY c.name', (user_id, month))
+    #cursor.execute('SELECT category, SUM(amount) FROM expenses WHERE user_id = ? AND month = ? GROUP BY category', (user_id, month))
+    category_expenses = cursor.fetchall()
+
+    categories = [row[0] for row in category_expenses]
+    amounts = [row[1] for row in category_expenses]
+
+    by_category = col1.selectbox('By Category', ['Pie Chart', 'Bar Chart'])
+
+    color_dict = {category: color for category, color in zip(categories, px.colors.qualitative.Plotly)}
+
+    if by_category == 'Pie Chart':
+        fig = go.Figure(data=[go.Pie(labels=categories, values=amounts, hole=.3, marker_colors=[color_dict[category] for category in categories])])
+        fig.update_layout(autosize=False, width=350, height=500)
+        col1.plotly_chart(fig)
+    elif by_category == 'Bar Chart':
+        fig = go.Figure(data=[go.Bar(x=categories, y=amounts, marker_color=[color_dict[category] for category in categories])])
+        fig.update_layout(autosize=False, width=350, height=500)
+        col1.plotly_chart(fig)
+
+def expense_category_chart(cursor, user_id, month, col2):
+    cursor.execute('SELECT c.name, SUM(e.amount) FROM expenses e INNER JOIN categories c ON e.category_id = c.id WHERE e.user_id = ? AND e.month = ? GROUP BY c.name', (user_id, month))
+    #cursor.execute('SELECT category, SUM(amount) FROM expenses WHERE user_id = ? AND month = ? GROUP BY category', (user_id, month))
+    category_expenses = cursor.fetchall()
+    categories = [row[0] for row in category_expenses]
+
+    category_to_view = col2.selectbox('Select a category to view', categories)
+    cursor.execute('SELECT e.name, SUM(e.amount) FROM expenses e INNER JOIN categories c ON e.category_id = c.id WHERE c.name = ? AND e.user_id = ? AND e.month = ? GROUP BY e.name', (category_to_view, user_id, month))
+    #cursor.execute('SELECT name, SUM(amount) FROM expenses WHERE category = ? AND user_id = ? AND month = ? GROUP BY name',  (category_to_view, user_id, month))
+    individual_expenses = cursor.fetchall()
+
+    expense_names = [row[0] for row in individual_expenses]
+    amounts = [row[1] for row in individual_expenses]
+
+    fig = go.Figure(data=[go.Pie(labels=expense_names, values=amounts, hole=.3)])
+    fig.update_layout(autosize=False, width=350, height=500)
+    col2.plotly_chart(fig)
+
+def track_spending_chart(cursor, user_id, month, budget):
+    current_date = datetime.now().date()  
+    current_year = datetime.now().year
+    months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+    month_index = months.index(month) + 1
+
+    #calculate number of days in current month
+    days_in_month = calendar.monthrange(current_date.year, current_date.month)[1]
+
+    #calculate daily budget
+    daily_budget = budget / days_in_month
+    start_date = f"{current_year}-{month_index:02d}-01"
+    end_date = f"{current_year}-{month_index:02d}-{calendar.monthrange(current_year, month_index)[1]}"
+
+      # Create a DataFrame with dates of the month
+    df = pd.DataFrame({
+        'date': pd.date_range(start=start_date, end=end_date)
+    })
+
+    # Calculate the expected spending for each day
+    df['expected_spending'] = daily_budget * (df['date'].dt.day)
+
+    # Fetch the daily spending up to the current date
+    cursor.execute('SELECT date, SUM(amount) FROM expenses WHERE user_id = ? AND date >= ? AND date <= ? GROUP BY date', (user_id, start_date, current_date))
+    daily_spending = cursor.fetchall()
+
+    # Convert the daily spending into a DataFrame
+    df_spending = pd.DataFrame(daily_spending, columns=['date', 'amount'])
+    df_spending['date'] = pd.to_datetime(df_spending['date'])
+
+    # Merge the two DataFrames
+    df = pd.merge(df, df_spending, how='left', on='date')
+
+    # Calculate the cumulative spending
+    df['amount'] = df['amount'].fillna(0)
+    df['current_spending'] = df['amount'].cumsum()
+    current_date = pd.to_datetime(current_date)
+    df.loc[df['date'] > current_date, 'current_spending'] = np.nan
+
+
+    # Create a line chart with two lines
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=df['date'], y=df['current_spending'], mode='lines', name='Current Spending'))
+    fig.add_trace(go.Scatter(x=df['date'], y=df['expected_spending'], mode='lines', name='Expected Spending'))
+    fig.update_layout(title='Spending Over Time', xaxis_title='Date', yaxis_title='Amount')
+
+    # Set the range of the x-axis
+    fig.update_xaxes(range=[start_date, end_date])
+
+    # Display the chart
+    return fig
+
+    

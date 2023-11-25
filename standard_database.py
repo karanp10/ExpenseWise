@@ -70,7 +70,6 @@ cursor.execute('''
       user_id INTEGER,
       name TEXT,
       category_id INTEGER,
-      category TEXT,
       amount REAL,
       month TEXT,
       date TEXT,
