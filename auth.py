@@ -7,6 +7,7 @@ cursor = conn.cursor()
 conn.commit()
 
 
+#checking user 
 def check_user(username, password):
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
@@ -15,6 +16,7 @@ def check_user(username, password):
         return False
     return bcrypt.checkpw(password.encode('utf-8'), user[2].encode('utf-8'))
 
+#getting user_id
 def get_user_id(username):
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
@@ -26,6 +28,7 @@ def get_user_id(username):
     else:
         return None
     
+#creating user  
 def create_user(username, password):
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()

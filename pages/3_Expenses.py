@@ -15,46 +15,42 @@ def expense():
     if 'user_id' not in st.session_state:
         st.write('Please log in to continue')
         st.stop()
-
     user_id = st.session_state['user_id']
 
+    #Selecting month
     months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-
     current_month = datetime.now().strftime('%B')
     with st.form(key='month_form'):
         month = st.selectbox('Select a month', months, index=months.index(current_month))
         submit_month = st.form_submit_button(label='Select Month')
-
     if submit_month:
-        # Load the categories for the selected month
         categories = fetch_categories_names(cursor, user_id, month)
-
     categories = fetch_categories_names(cursor, user_id, month)
 
+    #Add expenses with category 
     with st.form(key='expense_form'):
         name = st.text_input('Enter expense name')
         category = st.selectbox('Select category', categories)
         amount = st.number_input('Enter amount', min_value=0.0)
         submit_button = st.form_submit_button(label='Submit')
-
     if submit_button:
         add_expense(conn, cursor, user_id, name, category, amount, month)
         st.success('Expense added succcessfully!')
         expenses = fetch_expenses(cursor, user_id, month)
 
-
+    #Deleting Expense functionality
     if st.sidebar.button('Delete All Expenses'):
         delete_month_expense(conn, cursor, user_id, month)
         st.success('All expenses deleted successfully')
 
+    #Fetching expenses along with delete and edit functionality
     expenses = fetch_expenses(cursor, user_id, month)
-
     for i, expense in enumerate(expenses):
         col1, col2, col3, col4, col5, col6 = st.columns([3,3,3,3,3,3])
         col1.text(expense[1]) #name
         col2.text(expense[2]) #category
-        col3.text(expense[3])
-        col4.text(expense[4])
+        col3.text(expense[3]) #amount
+        col4.text(expense[4]) #date
         
         delete_button_key = f'delete_{expense[0]}'
         if col5.button('Delete', key=delete_button_key):

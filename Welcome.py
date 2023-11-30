@@ -30,7 +30,7 @@ def run():
         page_icon="👋",
     )
 
-    st.write("# Welcome to this Budget Tracker 👋")
+    st.write("# Welcome to ExpenseWise 👋")
 
     st.write("""
     This Budget Tracker allows you to manage your finances effectively. 

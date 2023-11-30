@@ -26,20 +26,40 @@ import streamlit as st
 
 conn = sqlite3.connect('database.db')
 
+def fetch_group_id(cursor, category_name):
+    cursor.execute('SELECT id FROM groups WHERE name = ?', (category_name,))
+    return cursor.fetchone()[0]
 
-def show_code(demo):
-    """Showing the code of the demo."""
-    show_code = st.sidebar.checkbox("Show code", True)
-    if show_code:
-        # Showing the code of the demo.
-        st.markdown("## Code")
-        sourcelines, _ = inspect.getsourcelines(demo)
-        st.code(textwrap.dedent("".join(sourcelines[1:])))
+def fetch_group_name(cursor):
+    names = cursor.execute('SELECT name FROM groups')
+    return names 
+
+def fetch_distinct_group_id(cursor, user_id):
+    category_ids = cursor.execute('SELECT DISTINCT group_id FROM mandatory_expenses WHERE user_id = ?', (user_id,)).fetchall()
+    return category_ids
+
+def fetch_group_info(cursor):
+    group_info = cursor.execute('SELECT id, name FROM groups').fetchall()
+    return group_info
+
+
+def fetch_total_expenses(cursor, category_id, user_id):
+    expenses = cursor.execute('SELECT SUM(amount) FROM mandatory_expenses WHERE group_id = ? AND user_id = ?', (category_id, user_id)).fetchone()[0] or 0
+    return expenses
+    
 
 def fetch_categories_names(cursor, user_id, month):
     cursor.execute('SELECT name FROM categories WHERE user_id = ? AND month = ?', (user_id, month))
     categories = [category[0] for category in cursor.fetchall()]
     return categories
+
+def fetch_latest_income(cursor, user_id):
+    latest_income = cursor.execute('SELECT amount FROM income WHERE user_id = ? AND amount IS NOT NULL ORDER BY rowid DESC LIMIT 1', (user_id,)).fetchone()
+    return latest_income
+
+def fetch_mandatory_expenses(cursor, user_id):
+    expenses = cursor.execute('SELECT mandatory_expenses.id, groups.name, mandatory_expenses.name, mandatory_expenses.amount FROM mandatory_expenses JOIN groups ON mandatory_expenses.group_id = groups.id WHERE mandatory_expenses.user_id = ? AND mandatory_expenses.amount IS NOT NULL', (user_id,)).fetchall()
+    return expenses
 
 def fetch_categories(cursor, user_id, month):
     cursor.execute('SELECT id, name FROM categories WHERE user_id = ? AND month = ?', (user_id, month))
@@ -63,6 +83,14 @@ def fetch_sum_expenses(cursor, user_id, month):
     expenses = cursor.fetchone()[0]
     return expenses if expenses is not None else 0
 
+def add_income(conn, cursor, user_id, income):
+    cursor.execute('INSERT INTO income (user_id, amount) VALUES (?, ?)', (user_id, income))
+    conn.commit()
+
+def add_mandatory_expenses(conn, cursor, user_id, group_id, expense_name, amount):
+    cursor.execute('INSERT INTO mandatory_expenses (user_id, group_id, name, amount) VALUES (?, ?, ?, ?)', (user_id, group_id, expense_name, amount))
+    conn.commit()
+
 def add_expense(conn, cursor, user_id, name, category, amount, month):
     cursor.execute('SELECT id FROM categories WHERE name = ? AND user_id = ? AND month = ?', (category, user_id, month))
     category_id = cursor.fetchone()[0]
@@ -82,6 +110,10 @@ def add_categories(conn, cursor, user_id, categories_input, month):
             cursor.execute('INSERT INTO categories (user_id, name, month) VALUES (?, ?, ?)', (user_id, category, month))
         conn.commit()
         st.success('Budget set successfully')
+
+def delete_mandatory_expense(conn, cursor, id, user_id):
+    cursor.execute('DELETE FROM mandatory_expenses WHERE id = ? AND user_id = ?', (id, user_id))
+    conn.commit()
 
 def delete_expense(conn, cursor, id, user_id):
     cursor.execute('DELETE FROM expenses WHERE id = ? AND user_id = ?', (id, user_id))
@@ -198,4 +230,13 @@ def track_spending_chart(cursor, user_id, month, budget):
     # Display the chart
     return fig
 
-    
+def treemap_expense(cursor, user_id, month):
+    cursor.execute('SELECT name, SUM(amount) as total_amount FROM expenses WHERE user_id = ? AND month = ? GROUP BY name ORDER BY total_amount DESC LIMIT 10', (user_id, month))
+    top_expenses = cursor.fetchall()
+    df = pd.DataFrame(top_expenses, columns = ['Expense', 'Amount'])
+    df['Label'] = df['Expense'] + '<br>$' + df['Amount'].astype(str)
+    fig = px.treemap(df, path=['Label'], values='Amount', title='Top Expenses This Month', hover_data=['Expense'])
+    fig.data[0].hovertemplate = '%{label}%'
+    return fig
+
+
